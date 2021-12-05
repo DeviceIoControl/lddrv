@@ -60,6 +60,7 @@ private:
 
     static bool GetLoadDriverPrivilege() 
     {
+        bool Success = true;
         HANDLE hProcessToken = NULL;
         OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hProcessToken);
         
@@ -76,13 +77,13 @@ private:
             if (!AdjustTokenPrivileges(hProcessToken, false, &NewTknPrivs, dwReturnLength, pOldTknPrivs, &dwReturnLength))
             {
                 std::cout << "Unable to gain SeLoadDriverPrivilege.\n";
-                return false;
+                Success = false;
             }
         }
 
-        return true;
+        CloseHandle(hProcessToken);
+        return Success;
     }
-
 
 };
 
@@ -92,11 +93,10 @@ int main(int argc, const char** argv)
     std::cout << "Created by Josh S.\n\n";
 
     std::cout << "Creating driver service...\n";
+    
     ServiceManager::Initialize();
     DriverManager::Shutdown();
 
-    std::unordered_map<std::string_view, std::string_view> ArgumentMap;
-    
     if (argc < 5) 
     {
         std::cout << "Insufficient arguments provided.\n";
@@ -104,6 +104,7 @@ int main(int argc, const char** argv)
         return ERROR_INVALID_PARAMETER;
     }
 
+    std::unordered_map<std::string_view, std::string_view> ArgumentMap;
     ArgumentMap[std::string_view("-binpath")] = std::string_view();
     ArgumentMap[std::string_view("-svcname")] = std::string_view();
     ArgumentMap[std::string_view("-operation")] = std::string_view();
@@ -137,10 +138,12 @@ int main(int argc, const char** argv)
 
 
 
+    
     DriverManager::UnloadDriver(DriverName);
-
     ServiceManager::DeleteService(hDrvService);
+    
     ServiceManager::Shutdown();
+    DriverManager::Shutdown();
 
     std::getchar();
     return ERROR_SUCCESS;
