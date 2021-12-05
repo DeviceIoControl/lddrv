@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <string>
 #include <string_view>
+#include <memory>
 #include <unordered_map>
 #include <winternl.h>
 
@@ -73,8 +74,8 @@ private:
 
         if (AdjustTokenPrivileges(hProcessToken, false, &NewTknPrivs, NULL, nullptr, &dwReturnLength))
         {
-            TOKEN_PRIVILEGES* pOldTknPrivs = (decltype(pOldTknPrivs))::operator new(dwReturnLength);
-            if (!AdjustTokenPrivileges(hProcessToken, false, &NewTknPrivs, dwReturnLength, pOldTknPrivs, &dwReturnLength))
+            std::unique_ptr<TOKEN_PRIVILEGES> pOldTknPrivs = std::make_unique<TOKEN_PRIVILEGES>();
+            if (!AdjustTokenPrivileges(hProcessToken, false, &NewTknPrivs, dwReturnLength, pOldTknPrivs.get(), &dwReturnLength))
             {
                 std::cout << "Unable to gain SeLoadDriverPrivilege.\n";
                 Success = false;
