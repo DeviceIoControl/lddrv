@@ -6,4 +6,4 @@ Simple Driver loading command-line utility.
 - Unload a driver: "lddrv.exe -operation delete -svcname TestDriver"
 
 ## Notes
-- Project requires SvcManager to compile. Please clone SvcManager from here: https://github.com/DeviceIoControl/SvcManager 
+- Project requires SvcManager to compile. Please clone SvcManager from here: https://github.com/DeviceIoControl/SvcManager/tree/SvcManager_Module 
