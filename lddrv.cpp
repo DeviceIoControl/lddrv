@@ -184,9 +184,9 @@ int main(int argc, const char** argv)
     {
         hDriverService = ServiceManager::OpenService(svcName.data(), SVC_ACCESS::ALL_ACCESS);
         
-        if (svcConfig->dwServiceType != (DWORD)SVC_TYPE::KERNEL_DRIVER)
+        if (svcConfig->dwServiceType != (DWORD)SVC_TYPE::KERNEL_DRIVER || !hDriverService.Valid())
         {
-            std::cout << "Unable to remove the driver service (Invalid service type).\n";
+            std::cout << "Unable to remove the driver service.\n";
         }
         else
         {
