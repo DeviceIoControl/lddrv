@@ -42,8 +42,12 @@ public:
     static bool LoadDriver(const std::wstring& DriverServiceName) 
     {
         UNICODE_STRING wszDriverName = { 0 };
-        wszDriverName.Buffer = const_cast<PWSTR>(DriverServiceName.data());
-        wszDriverName.Length = DriverServiceName.length() * sizeof(wchar_t);
+
+        std::wstring FullDriverSvcPath(L"\\Registry\\Machine\\SYSTEM\\CurrentControlSet\\Services\\");
+        FullDriverSvcPath += DriverServiceName;
+
+        wszDriverName.Buffer = const_cast<PWSTR>(FullDriverSvcPath.data());
+        wszDriverName.Length = FullDriverSvcPath.length() * sizeof(wchar_t);
         wszDriverName.MaximumLength = wszDriverName.Length + sizeof(wchar_t);
 
         HRESULT status = DriverManager::s_pfnNtLoadDriver(&wszDriverName);
@@ -54,8 +58,12 @@ public:
     static bool UnloadDriver(const std::wstring& DriverServiceName)
     {
         UNICODE_STRING wszDriverName = { 0 };
-        wszDriverName.Buffer = const_cast<PWSTR>(DriverServiceName.data());
-        wszDriverName.Length = DriverServiceName.length() * sizeof(wchar_t);
+
+        std::wstring FullDriverSvcPath(L"\\Registry\\Machine\\SYSTEM\\CurrentControlSet\\Services\\");
+        FullDriverSvcPath += DriverServiceName;
+
+        wszDriverName.Buffer = const_cast<PWSTR>(FullDriverSvcPath.data());
+        wszDriverName.Length = FullDriverSvcPath.length() * sizeof(wchar_t);
         wszDriverName.MaximumLength = wszDriverName.Length + sizeof(wchar_t);
     
         NTSTATUS status = DriverManager::s_pfnNtUnloadDriver(&wszDriverName);
@@ -211,8 +219,7 @@ int main(int argc, const char** argv)
     ServiceHandle hDriverService;
 
     //Convert from narrow to wide-char string.
-    std::wstring DriverSvcName(L"\\Registry\\Machine\\SYSTEM\\CurrentControlSet\\Services\\");
-    DriverSvcName += std::wstring(svcName.begin(), svcName.end());
+    std::wstring DriverSvcName(svcName.begin(), svcName.end());
     
     if (operation == "create") 
     {
