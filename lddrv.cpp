@@ -25,7 +25,18 @@ public:
         DriverManager::s_pfnNtUnloadDriver = reinterpret_cast<T_NtUnloadDriver>(GetProcAddress(hNTDLL, "NtUnloadDriver"));
 
         std::cout << "Obtaining required privileges...\n";
-        return DriverManager::GetLoadDriverPrivilege();
+        bool Success = DriverManager::GetLoadDriverPrivilege();
+
+        if(Success)
+        {
+            std::cout << "Successfully obtained the privileges!\n";
+        }
+        else 
+        {
+            std::cout << "Unable to gain required privileges...\n";
+        }
+
+        return Success;
     }
 
     static bool LoadDriver(const std::wstring& DriverServiceName) 
@@ -106,9 +117,26 @@ private:
     static bool GetLoadDriverPrivilege() 
     {
         HANDLE hProcessToken = DriverManager::GetProcessToken();
-        TOKEN_PRIVILEGES tokenPriv = DriverManager::GetTokenPrivilegeFromName("SeLoadDriverPrivilege");
-        bool Success = DriverManager::ApplyTokenPrivilege(hProcessToken, tokenPriv);
 
+        if (hProcessToken == INVALID_HANDLE_VALUE) 
+        {
+            std::cout << "Unable to obtain process token...\n";
+            return false;
+        }
+
+        TOKEN_PRIVILEGES tokenPriv = DriverManager::GetTokenPrivilegeFromName("SeLoadDriverPrivilege");
+
+        bool Success = false;
+
+        if (tokenPriv.PrivilegeCount != 1)
+        {
+            std::cout << "Unable to obtain TOKEN_PRIVILEGES...\n";    
+        }
+        else
+        {
+            Success = DriverManager::ApplyTokenPrivilege(hProcessToken, tokenPriv);
+        }
+        
         CloseHandle(hProcessToken);
         return Success;
     }
@@ -125,8 +153,30 @@ int main(int argc, const char** argv)
         return ERROR_INVALID_PARAMETER;
     }
 
-    ServiceManager::Initialise();
-    DriverManager::Initialise();
+    std::cout << "Initialising ServiceManager...\n";
+
+    if (ServiceManager::Initialise()) 
+    {
+        std::cout << "Service Manager succesfully initialised!\n";
+    }
+    else 
+    {
+        std::cout << "Unable to intialise ServiceManager...\n";
+        return E_FAIL;
+    }
+
+    std::cout << "Initialising DriverManager...\n";
+    
+    if (DriverManager::Initialise()) 
+    {
+        std::cout << "DriverManager successfully initialised.";
+    }
+    else 
+    {
+        std::cout << "Unable to intitalize DriverManager.\n";
+        ServiceManager::Shutdown();
+        return E_FAIL;
+    }
 
     std::unordered_map<std::string_view, const char*> ArgumentMap;
     ArgumentMap.emplace("-binpath", nullptr);
@@ -158,7 +208,6 @@ int main(int argc, const char** argv)
     const std::string_view operation = ArgumentMap[std::string_view("-operation")];
 
     ServiceHandle hDriverService;
-    std::unique_ptr<QUERY_SERVICE_CONFIGA> svcConfig = hDriverService.QueryConfig();
 
     //Convert from narrow to wide-char string.
     std::wstring DriverSvcName(svcName.begin(), svcName.end());
@@ -170,7 +219,22 @@ int main(int argc, const char** argv)
             SVC_TYPE::KERNEL_DRIVER, SVC_START_TYPE::MANUAL, SVC_ERROR_CTRL::ERROR_NORMAL,
             binPath.data());
 
+        if (hDriverService.Valid()) 
+        {
+            std::cout << "Driver service was created succesfully!\n";
+        }
+        else 
+        {
+            std::cout << "Unable to create driver service...\n";
+
+            DriverManager::Shutdown();
+            ServiceManager::Shutdown();
+
+            return E_FAIL;
+        }
+
         std::cout << "Attempting to load driver...\n";    
+
         if (DriverManager::LoadDriver(DriverSvcName)) 
         {
             std::cout << "Driver was loaded successfully!\n";
@@ -183,7 +247,18 @@ int main(int argc, const char** argv)
     else if (operation == "delete") 
     {
         hDriverService = ServiceManager::OpenService(svcName.data(), SVC_ACCESS::ALL_ACCESS);
-        
+        std::unique_ptr<QUERY_SERVICE_CONFIGA> svcConfig = hDriverService.QueryConfig();
+
+        if (!svcConfig)
+        {
+            std::cout << "Unable to retrieve critical service information...\n";
+            
+            ServiceManager::Shutdown();
+            DriverManager::Shutdown();
+
+            return E_FAIL;
+        }
+
         if (svcConfig->dwServiceType != (DWORD)SVC_TYPE::KERNEL_DRIVER || !hDriverService.Valid())
         {
             std::cout << "Unable to remove the driver service.\n";
