@@ -46,7 +46,8 @@ public:
         wszDriverName.Length = DriverServiceName.length() * sizeof(wchar_t);
         wszDriverName.MaximumLength = wszDriverName.Length + sizeof(wchar_t);
 
-        NTSTATUS status = DriverManager::s_pfnNtLoadDriver(&wszDriverName);
+        HRESULT status = DriverManager::s_pfnNtLoadDriver(&wszDriverName);
+         
         return (status) ? false : true;
     }
 
@@ -210,7 +211,8 @@ int main(int argc, const char** argv)
     ServiceHandle hDriverService;
 
     //Convert from narrow to wide-char string.
-    std::wstring DriverSvcName(svcName.begin(), svcName.end());
+    std::wstring DriverSvcName(L"\\Registry\\Machine\\SYSTEM\\CurrentControlSet\\Services\\");
+    DriverSvcName += std::wstring(svcName.begin(), svcName.end());
     
     if (operation == "create") 
     {
