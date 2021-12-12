@@ -169,7 +169,7 @@ int main(int argc, const char** argv)
     
     if (DriverManager::Initialise()) 
     {
-        std::cout << "DriverManager successfully initialised.";
+        std::cout << "DriverManager successfully initialised!\n";
     }
     else 
     {
@@ -215,7 +215,7 @@ int main(int argc, const char** argv)
     if (operation == "create") 
     {
         std::cout << "Creating driver service...\n";
-        hDriverService = ServiceManager::CreateService(svcName.data(), svcName.data(),
+        hDriverService = ServiceManager::CreateService(svcName.data(), "Driver Display Name",
             SVC_TYPE::KERNEL_DRIVER, SVC_START_TYPE::MANUAL, SVC_ERROR_CTRL::ERROR_NORMAL,
             binPath.data());
 
