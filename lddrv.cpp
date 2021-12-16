@@ -7,6 +7,7 @@
 #include <memory>
 #include <unordered_map>
 #include <winternl.h>
+#include <Psapi.h>
 #include <processthreadsapi.h>
 
 #include  "..\SvcManager\SvcManager.hpp"
@@ -30,6 +31,7 @@ public:
         if(Success)
         {
             std::cout << "Successfully obtained the privileges!\n";
+            DriverManager::UpdateLoadedDriverLookasideMap();
         }
         else 
         {
@@ -37,6 +39,17 @@ public:
         }
 
         return Success;
+    }
+
+    inline static void* LookupDriverLoadedAddress(const std::string_view& driverBinPath) 
+    {
+        std::string drvBinPath(driverBinPath);
+        return DriverManager::s_LoadedDriversMap[drvBinPath];
+    }
+
+    inline static void* LookupDriverLoadedAddress(const std::string& driverBinPath) 
+    {
+        return DriverManager::s_LoadedDriversMap[driverBinPath];
     }
 
     static bool LoadDriver(const std::wstring& DriverServiceName) 
@@ -51,7 +64,16 @@ public:
         wszDriverName.MaximumLength = wszDriverName.Length + sizeof(wchar_t);
 
         HRESULT status = DriverManager::s_pfnNtLoadDriver(&wszDriverName);
-         
+        
+        if (status == S_OK) 
+        {
+            DriverManager::UpdateLoadedDriverLookasideMap();
+        }
+        else 
+        {
+            std::cout << "An error occurred loading the driver: 0x" << (void*)status << "\n";
+        }
+
         return (status) ? false : true;
     }
 
@@ -67,6 +89,16 @@ public:
         wszDriverName.MaximumLength = wszDriverName.Length + sizeof(wchar_t);
     
         NTSTATUS status = DriverManager::s_pfnNtUnloadDriver(&wszDriverName);
+
+        if (status == S_OK) 
+        {
+            DriverManager::UpdateLoadedDriverLookasideMap();
+        }
+        else 
+        {
+            std::cout << "An error occurred unloading the driver: 0x" << (void*)status << "\n";
+        }
+
         return (status) ? false : true;
     }
 
@@ -80,6 +112,43 @@ public:
 private:
     inline static T_NtLoadDriver s_pfnNtLoadDriver;
     inline static T_NtUnloadDriver s_pfnNtUnloadDriver;
+    inline static std::unordered_map<std::string, void*> s_LoadedDriversMap;
+
+    static bool UpdateLoadedDriverLookasideMap() 
+    {
+        DWORD dwBytesRequired = 0;
+        K32EnumDeviceDrivers(nullptr, 0, &dwBytesRequired);
+
+        // Calculate the number of entries.
+        DWORD dwNumOfEntries = dwBytesRequired / sizeof(void*);
+
+        std::vector<void*> LoadedDriversAddrs(dwNumOfEntries);
+        std::vector<std::string> LoadedDriversNames(dwNumOfEntries);
+        
+        // If we cant get the base addresses then we bail. 
+        if(!K32EnumDeviceDrivers(LoadedDriversAddrs.data(), dwBytesRequired, &dwBytesRequired)) 
+        {
+            return false;
+        }
+
+        std::array<char, 256> DriverPathName;
+
+        // It's OK to clear the map here as we have the driver base addresses.
+        DriverManager::s_LoadedDriversMap.clear();
+
+        // Iterate through all of the driver base addresses and retrieve the image file path. then we add them to the lookaside map.
+        for (int i = 0; i < dwNumOfEntries; ++i)
+        {
+            K32GetDeviceDriverFileNameA(LoadedDriversAddrs[i], DriverPathName.data(), DriverPathName.size());
+            
+            LoadedDriversNames[i] = std::string(DriverPathName.data());
+            DriverManager::s_LoadedDriversMap.emplace(LoadedDriversNames[i], LoadedDriversAddrs[i]);
+            
+            DriverPathName.fill(0);
+        }
+
+        return true;
+    }
 
     static HANDLE GetProcessToken() 
     {
@@ -218,7 +287,7 @@ int main(int argc, const char** argv)
 
     ServiceHandle hDriverService;
 
-    //Convert from narrow to wide-char string.
+    // Convert from narrow to wide-char string.
     std::wstring DriverSvcName(svcName.begin(), svcName.end());
     
     if (operation == "create") 
@@ -227,6 +296,7 @@ int main(int argc, const char** argv)
         hDriverService = ServiceManager::CreateService(svcName.data(), "Driver Display Name",
             SVC_TYPE::KERNEL_DRIVER, SVC_START_TYPE::MANUAL, SVC_ERROR_CTRL::ERROR_NORMAL,
             binPath.data());
+
 
         if (hDriverService.Valid()) 
         {
@@ -242,11 +312,13 @@ int main(int argc, const char** argv)
             return E_FAIL;
         }
 
-        std::cout << "Attempting to load driver...\n";    
+        std::unique_ptr<QUERY_SERVICE_CONFIGA> svcConfig = hDriverService.QueryConfig();
+        std::cout << "Attempting to load driver...\n";
 
         if (DriverManager::LoadDriver(DriverSvcName)) 
         {
-            std::cout << "Driver was loaded successfully!\n";
+            void* pDrvAddr = DriverManager::LookupDriverLoadedAddress(std::string(svcConfig->lpBinaryPathName));
+            std::cout << "Driver was loaded successfully @ 0x" << pDrvAddr << "!\n";
         }
         else 
         {
@@ -275,10 +347,24 @@ int main(int argc, const char** argv)
         else
         {
             std::cout << "Unloading driver...\n";
-            DriverManager::UnloadDriver(DriverSvcName);
-            
+            if (DriverManager::UnloadDriver(DriverSvcName)) 
+            {
+                std::cout << "Driver unloaded successfully!\n";
+            }
+            else 
+            {
+                std::cout << "Failed to unloaded driver.\n";
+            }
+
             std::cout << "Removing driver service...\n";
-            ServiceManager::DeleteService(hDriverService);
+            if (ServiceManager::DeleteService(hDriverService)) 
+            {
+                std::cout << "Driver service was succesfully removed.\n";
+            }
+            else 
+            {
+                std::cout << "Failed to remove the driver service.\n";
+            }
         }
     }
  
