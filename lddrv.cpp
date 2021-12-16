@@ -235,7 +235,7 @@ int main(int argc, const char** argv)
 
     if (ServiceManager::Initialise()) 
     {
-        std::cout << "Service Manager succesfully initialised!\n";
+        std::cout << "Service Manager successfully initialised!\n";
     }
     else 
     {
@@ -359,7 +359,7 @@ int main(int argc, const char** argv)
             std::cout << "Removing driver service...\n";
             if (ServiceManager::DeleteService(hDriverService)) 
             {
-                std::cout << "Driver service was succesfully removed.\n";
+                std::cout << "Driver service was successfully removed.\n";
             }
             else 
             {
