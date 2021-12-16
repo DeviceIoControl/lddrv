@@ -300,7 +300,7 @@ int main(int argc, const char** argv)
 
         if (hDriverService.Valid()) 
         {
-            std::cout << "Driver service was created succesfully!\n";
+            std::cout << "Driver service was created successfully!\n";
         }
         else 
         {
